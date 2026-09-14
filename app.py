@@ -1,17 +1,17 @@
 import streamlit as st
-import os
 import re
+import streamlit.components.v1 as components
 from groq import Groq
 from duckduckgo_search import DDGS
 
 st.set_page_config(
-    page_title="J.A.R.V.I.S. Clue Online",
-    page_icon="🌐",
-    layout="centered"
+    page_title="J.A.R.V.I.S. Clue (Stitch UI Engine)",
+    page_icon="🎨",
+    layout="wide"
 )
 
-st.title("🌐 J.A.R.V.I.S. Clue (Public Edition)")
-st.markdown("ระบบผู้ช่วยอัจฉริยะเวอร์ชันออนไลน์สาธารณะ พร้อมระบบค้นหาข้อมูลและขับเคลื่อนด้วย Groq AI")
+st.title("🎨 J.A.R.V.I.S. Clue + Stitch UI Engine")
+st.markdown("ระบบผู้ช่วยอัจฉริยะที่ผสานพลังดีไซน์แบบ Google Stitch: ออกแบบหน้า UI, เขียนโค้ด และพรีวิวผลลัพธ์แบบเรียลไทม์")
 
 api_key = st.secrets.get("GROQ_API_KEY")
 if not api_key:
@@ -20,10 +20,9 @@ if not api_key:
 
 client = Groq(api_key=api_key)
 
-# แผงควบคุมตั้งค่าข้างเว็บ
 with st.sidebar:
-    st.header("⚙️ การตั้งค่าระบบ")
-    use_search = st.checkbox("🔍 เปิดใช้งานค้นหาข้อมูลจากเว็บ (Web Search)", value=True)
+    st.header("⚙️ แผงควบคุม Stitch Engine")
+    use_search = st.checkbox("🔍 เปิดใช้งานค้นหาข้อมูลเว็บ", value=True)
     model_choice = st.selectbox("🤖 เลือกโมเดล AI", ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"])
     if st.button("🗑️ ล้างประวัติการแชท"):
         st.session_state.messages = []
@@ -51,14 +50,17 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if "html_preview" in message and message["html_preview"]:
+            with st.expander("🔍 ดูพรีวิวหน้า UI (Stitch Live Preview)", expanded=True):
+                components.html(message["html_preview"], height=400, scrolling=True)
 
-if prompt := st.chat_input("พิมพ์คำสั่งถึง J.A.R.V.I.S. ออนไลน์..."):
+if prompt := st.chat_input("พิมพ์สั่งออกแบบ UI หรือค้นหาข้อมูล เช่น 'ออกแบบหน้าเว็บ Login สุดล้ำ'..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("J.A.R.V.I.S. กำลังประมวลผล..."):
+        with st.spinner("J.A.R.V.I.S. กำลังประมวลผลและสร้างสรรค์ดีไซน์..."):
             external_context = ""
             query_lower = prompt.lower()
             search_triggers = ["หา", "ค้น", "net", "เน็ต", "เว็บ", "ข้อมูล", "ข่าว", "ราคา", "ล่าสุด", "วันนี้", "ปี 2026", "เหตุการณ์", "ai", "เทคโนโลยี", "คืออะไร"]
@@ -70,10 +72,10 @@ if prompt := st.chat_input("พิมพ์คำสั่งถึง J.A.R.V.I
                 external_context = secure_web_search(search_query)
 
             system_content = (
-                "You are J.A.R.V.I.S. Clue, an elite, proactive, and exceptionally smart AI core. "
-                "You MUST ALWAYS respond in fluent, natural Thai. "
-                "NEVER ask lazy clarifying questions like 'What do you want?' or 'Please specify'. "
-                "Be direct, precise, and creative."
+                "You are J.A.R.V.I.S. Clue, powered by Stitch UI engine. "
+                "Always respond in fluent, natural Thai. "
+                "If the user asks to design a UI, layout, component, or webpage, write complete, modern, and beautiful HTML/CSS inside ```html ... ``` tags so it can be rendered live. "
+                "Be proactive, precise, and creative."
             )
 
             messages_payload = [{"role": "system", "content": system_content}]
@@ -95,7 +97,19 @@ if prompt := st.chat_input("พิมพ์คำสั่งถึง J.A.R.V.I
                 )
                 reply = chat_completion.choices[0].message.content
             except Exception as e:
-                reply = f"เกิดข้อผิดพลาดในการเชื่อมต่อคลาวด์: {str(e)}"
-            
+                reply = f"เกิดข้อผิดพลาด: {str(e)}"
+
+            # ดึงโค้ด HTML ออกมาทำ Live Preview แบบ Stitch
+            html_match = re.search(r'```html\s*(.*?)\s*```', reply, re.DOTALL)
+            html_preview_code = html_match.group(1) if html_match else None
+
             st.markdown(reply)
-            st.session_state.messages.append({"role": "assistant", "content": reply})
+            if html_preview_code:
+                with st.expander("🔍 ดูพรีวิวหน้า UI (Stitch Live Preview)", expanded=True):
+                    components.html(html_preview_code, height=400, scrolling=True)
+
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": reply,
+                "html_preview": html_preview_code
+            })
