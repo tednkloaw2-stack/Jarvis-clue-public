@@ -21,7 +21,7 @@ genai.configure(api_key=api_key)
 
 with st.sidebar:
     st.header("⚙️ ตั้งค่าระบบ")
-    model_choice = st.selectbox("🤖 เลือกโมเดล AI", ["gemini-1.5-flash", "gemini-1.5-pro"])
+    model_choice = st.selectbox("🤖 เลือกโมเดล AI", ["gemini-2.0-flash", "gemini-1.5-flash"])
     if st.button("🗑️ ล้างประวัติการแชท"):
         st.session_state.messages = []
         st.rerun()
