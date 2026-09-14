@@ -159,32 +159,32 @@ def trigger_jarvis_action(message, voice_text=None):
 
   js_template = """
         <script>
-            (function() {
+            function speakJarvis(text) {
                 if (!window.speechSynthesis) return;
                 window.speechSynthesis.cancel();
 
-                function executeSpeech() {
-                    const utter = new SpeechSynthesisUtterance("__PHONETIC_TEXT__");
-                    utter.lang = "th-TH";
-                    utter.rate = 1.02;
-                    utter.pitch = 0.92;
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = "th-TH";
+                utter.rate = 1.02;
+                utter.pitch = 0.92;
 
+                const attemptSpeak = () => {
                     const voices = window.speechSynthesis.getVoices();
                     let bestVoice = voices.find(v => v.lang.includes("th") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Online")));
                     if (!bestVoice) {
                         bestVoice = voices.find(v => v.lang.includes("th"));
                     }
                     if (bestVoice) utter.voice = bestVoice;
-
                     window.speechSynthesis.speak(utter);
-                }
+                };
 
                 if (window.speechSynthesis.getVoices().length > 0) {
-                    executeSpeech();
+                    attemptSpeak();
                 } else {
-                    window.speechSynthesis.onvoiceschanged = executeSpeech;
+                    window.speechSynthesis.onvoiceschanged = attemptSpeak;
                 }
-            })();
+            }
+            speakJarvis("__PHONETIC_TEXT__");
         </script>
     """
   js_code = js_template.replace("__PHONETIC_TEXT__", phonetic_text)
@@ -216,13 +216,6 @@ STARK_LOGO_SVG = """
 # 1. หน้า Landing
 # ========================================================
 if st.session_state.view == "landing":
-  if not st.session_state.welcomed:
-    trigger_jarvis_action(
-        "SYSTEM READY: ยินดีต้อนรับเข้าสู่ระบบ จาร์วิส",
-        "ยินดีต้อนรับเข้าสู่ระบบ จาร์วิส ระบบพร้อมปฏิบัติการแล้วครับ",
-    )
-    st.session_state.welcomed = True
-
   st.markdown("<div style='height: 22vh;'></div>", unsafe_allow_html=True)
   st.markdown(STARK_LOGO_SVG, unsafe_allow_html=True)
   st.markdown(
@@ -242,6 +235,11 @@ if st.session_state.view == "landing":
   col_btn = st.columns([2, 1, 2])
   with col_btn[1]:
     if st.button("เริ่มต้นเชื่อมต่อระบบ", use_container_width=True):
+      trigger_jarvis_action(
+          "SYSTEM READY: ยินดีต้อนรับเข้าสู่ระบบ จาร์วิส",
+          "ยินดีต้อนรับเข้าสู่ระบบ จาร์วิส ระบบพร้อมปฏิบัติการแล้วครับ",
+      )
+      st.session_state.welcomed = True
       switch_to("dashboard")
 
 # ========================================================
