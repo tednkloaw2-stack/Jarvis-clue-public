@@ -130,7 +130,7 @@ def sanitize_for_speech(text):
       "Online": "ออนไลน์",
       "AI": "เอไอ",
   }
-  cleaned = text
+  cleaned = str(text)
   for eng, th in substitutions.items():
     cleaned = re.sub(re.escape(eng), th, cleaned, flags=re.IGNORECASE)
   return cleaned.replace('"', "").replace("'", "")
@@ -155,40 +155,38 @@ def trigger_jarvis_action(message, voice_text=None):
 
   phonetic_text = sanitize_for_speech(voice_text)
 
-  st.components.v1.html(
-      f"""
+  js_template = """
         <script>
-            (function() {{
+            (function() {
                 if (!window.speechSynthesis) return;
                 window.speechSynthesis.cancel();
 
-                function executeSpeech() {{
-                    const utter = new SpeechSynthesisUtterance("{phonetic_text}");
+                function executeSpeech() {
+                    const utter = new SpeechSynthesisUtterance("__PHONETIC_TEXT__");
                     utter.lang = "th-TH";
                     utter.rate = 1.02;
                     utter.pitch = 0.95;
 
                     const voices = window.speechSynthesis.getVoices();
                     let bestVoice = voices.find(v => v.lang.includes("th") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Online")));
-                    if (!bestVoice) {{
+                    if (!bestVoice) {
                         bestVoice = voices.find(v => v.lang.includes("th"));
-                    }}
+                    }
                     if (bestVoice) utter.voice = bestVoice;
 
                     window.speechSynthesis.speak(utter);
-                }}
+                }
 
-                if (window.speechSynthesis.getVoices().length > 0) {{
+                if (window.speechSynthesis.getVoices().length > 0) {
                     executeSpeech();
-                }} else {{
+                } else {
                     window.speechSynthesis.onvoiceschanged = executeSpeech;
                 }
-            }})();
+            })();
         </script>
-    """,
-      height=0,
-      width=0,
-  )
+    """
+  js_code = js_template.replace("__PHONETIC_TEXT__", phonetic_text)
+  st.components.v1.html(js_code, height=0, width=0)
 
 
 if "view" not in st.session_state:
@@ -409,7 +407,6 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
         " finish line-by-line."
     )
 
-
     def process_and_upload_audio(client, file_obj):
       ext = "." + file_obj.name.split(".")[-1]
       with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_vid:
@@ -437,7 +434,6 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
 
       return uploaded_file, vid_path, target_path
 
-
     def call_gemini_engine(client, contents, stream=False):
       config = types.GenerateContentConfig(
           system_instruction=PURE_AUDIO_INSTRUCTION,
@@ -460,7 +456,6 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
             time.sleep(3)
             continue
           raise err
-
 
     if run_standard:
       if not uploaded_video:
