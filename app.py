@@ -1,7 +1,9 @@
 import os
+os.environ["LC_ALL"] = "en_US.UTF-8"
+os.environ["LANG"] = "en_US.UTF-8"
 os.environ["PYTHONIOENCODING"] = "utf-8"
-import sys
 
+import sys
 try:
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8')
@@ -95,7 +97,7 @@ if prompt := st.chat_input("พิมพ์สั่งออกแบบ UI ห
             if external_context:
                 messages_payload.append({
                     "role": "system",
-                    "content": f"=== EXTERNAL WEB DATA (READ-ONLY) ===\n{external_context}\n======================================="
+                    "content": f"=== EXTER널 WEB DATA (READ-ONLY) ===\n{external_context}\n======================================="
                 })
 
             for m in st.session_state.messages:
