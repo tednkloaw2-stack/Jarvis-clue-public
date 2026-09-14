@@ -1,374 +1,275 @@
-import webview
+import streamlit as st
+import os
+import tempfile
+import time
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
-# ฝังโค้ดระบบ Sci-Fi J.A.R.V.I.S. ไว้ในตัวแปรโดยตรง (ไม่ต้องพึ่งไฟล์ index.html ภายนอก)
-HTML_CONTENT = """
-<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <style>
-    :root {
-      --bg: #060913;
-      --panel-bg: rgba(11, 19, 38, 0.78);
-      --border-glow: rgba(0, 242, 254, 0.25);
-      --neon-cyan: #00f2fe;
-      --neon-blue: #38bdf8;
-      --neon-violet: #a855f7;
-      --neon-green: #10b981;
-      --text-main: #f8fafc;
-      --text-dim: #94a3b8;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-    body {
-      background-color: var(--bg);
-      background-image: 
-        radial-gradient(circle at 50% 20%, rgba(0, 242, 254, 0.08) 0%, transparent 55%),
-        radial-gradient(circle at 85% 85%, rgba(129, 140, 248, 0.06) 0%, transparent 45%),
-        linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-      background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
-      color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .view-screen {
-      display: none;
-      opacity: 0;
-      transition: all 0.35s ease;
-      padding: 40px 24px;
-      min-height: 100vh;
-      width: 100%;
-    }
-    .view-screen.active {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      opacity: 1;
-    }
-    #view-landing.active { justify-content: center; }
-    #view-dashboard.active { justify-content: flex-start; }
+load_dotenv()
 
-    .pulse-shockwave {
-      position: fixed; top: 50%; left: 50%;
-      transform: translate(-50%, -50%) scale(0);
-      width: 50px; height: 50px; border-radius: 50%;
-      border: 3px solid var(--neon-cyan);
-      box-shadow: 0 0 40px var(--neon-cyan);
-      pointer-events: none; opacity: 0; z-index: 100;
-    }
-    .pulse-shockwave.active { animation: shockwaveExpand 0.75s forwards; }
-    @keyframes shockwaveExpand {
-      0% { transform: translate(-50%, -50%) scale(0.1); opacity: 1; }
-      100% { transform: translate(-50%, -50%) scale(35); opacity: 0; }
-    }
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key and hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
 
-    .btn-connect {
-      padding: 14px 44px;
-      background: rgba(14, 23, 44, 0.75);
-      border: 1px solid rgba(0, 242, 254, 0.4);
-      color: #ffffff;
-      font-size: 0.92rem;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      border-radius: 8px;
-      cursor: pointer;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-      transition: all 0.25s ease;
-    }
-    .btn-connect:hover {
-      border-color: var(--neon-cyan);
-      background: rgba(0, 242, 254, 0.12);
-      box-shadow: 0 0 30px rgba(0, 242, 254, 0.35);
-      transform: translateY(-2px);
-      color: var(--neon-cyan);
-    }
-    .btn-connect:active { transform: scale(0.97); }
+st.set_page_config(
+    page_title="J.A.R.V.I.S. CORE",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-    .dash-header {
-      width: 100%; max-width: 1100px;
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 40px; padding-bottom: 24px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .dash-brand { display: flex; align-items: center; gap: 20px; }
-    .dash-logo {
-      width: 68px; height: 68px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: transform 0.3s ease;
-    }
-    .dash-logo svg { width: 100%; height: 100%; filter: drop-shadow(0 0 14px rgba(0, 242, 254, 0.65)); }
-    .dash-logo:hover { transform: scale(1.08) rotate(45deg); }
-    .dash-title {
-      font-size: 1.85rem; font-weight: 700;
-      background: linear-gradient(135deg, #ffffff 30%, var(--neon-cyan) 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
+# จัดการ State นำทาง
+if "view" not in st.session_state:
+    st.session_state.view = "landing"
 
-    .grid-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 22px; width: 100%; max-width: 1100px;
-    }
-    .hud-card {
-      background: var(--panel-bg);
-      backdrop-filter: blur(16px);
-      border: 1px solid var(--border-glow);
-      border-radius: 16px; padding: 28px 22px;
-      cursor: pointer; transition: all 0.3s ease;
-      position: relative; overflow: hidden;
-      display: flex; flex-direction: column;
-    }
-    .hud-card::before {
-      content: ''; position: absolute; top: 0; left: 0;
-      width: 4px; height: 100%; background: var(--neon-cyan);
-      opacity: 0; transition: opacity 0.3s ease;
-    }
-    .hud-card:hover {
-      transform: translateY(-6px);
-      border-color: var(--neon-cyan);
-      box-shadow: 0 12px 30px rgba(0, 242, 254, 0.18);
-    }
-    .hud-card:hover::before { opacity: 1; }
+def switch_to(target_view):
+    st.session_state.view = target_view
+    st.rerun()
 
-    .hud-card-badge {
-      font-size: 0.72rem; letter-spacing: 0.12em;
-      color: var(--neon-cyan); background: rgba(0, 242, 254, 0.1);
-      padding: 4px 10px; border-radius: 20px; align-self: flex-start;
-      margin-bottom: 14px;
-    }
+# ==========================================
+# CSS Overrides: ให้หน้าตาเหมือน Desktop App 100%
+# ==========================================
+if st.session_state.view == "landing":
+    custom_css = """
+    <style>
+        #MainMenu, header, footer, .stDeployButton { visibility: hidden !important; display: none !important; }
+        .stApp {
+            background: radial-gradient(circle at 50% 48%, #0d223a 0%, #060a17 65%, #03050c 100%) !important;
+            color: #ffffff !important;
+            overflow: hidden !important;
+        }
+        .block-container {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100vw !important;
+            height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }
+        /* ปรับแต่งปุ่มกดกลางจอตามรูป */
+        div.stButton {
+            display: flex;
+            justify-content: center;
+        }
+        div.stButton > button {
+            background: rgba(8, 22, 42, 0.75) !important;
+            border: 1.2px solid rgba(0, 242, 254, 0.45) !important;
+            color: #ffffff !important;
+            font-size: 0.95rem !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.08em !important;
+            border-radius: 6px !important;
+            padding: 10px 42px !important;
+            box-shadow: 0 0 16px rgba(0, 242, 254, 0.15) !important;
+            transition: all 0.25s ease !important;
+        }
+        div.stButton > button:hover {
+            border-color: #00f2fe !important;
+            background: rgba(0, 242, 254, 0.18) !important;
+            box-shadow: 0 0 28px rgba(0, 242, 254, 0.45) !important;
+            color: #00f2fe !important;
+            transform: scale(1.02) !important;
+        }
+        div.stButton > button:active {
+            transform: scale(0.98) !important;
+        }
+    </style>
+    """
+else:
+    custom_css = """
+    <style>
+        #MainMenu, header, footer, .stDeployButton { visibility: hidden !important; display: none !important; }
+        .stApp {
+            background-color: #060a17 !important;
+            background-image: 
+                radial-gradient(circle at 50% 15%, rgba(0, 242, 254, 0.08) 0%, transparent 60%),
+                linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px) !important;
+            background-size: 100% 100%, 48px 48px, 48px 48px !important;
+            color: #f8fafc !important;
+        }
+        .block-container {
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+            max-width: 1080px !important;
+        }
+        div.stButton > button {
+            background: rgba(14, 23, 44, 0.75) !important;
+            border: 1px solid rgba(0, 242, 254, 0.4) !important;
+            color: #ffffff !important;
+            border-radius: 8px !important;
+            transition: all 0.25s ease !important;
+        }
+        div.stButton > button:hover {
+            border-color: #00f2fe !important;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.35) !important;
+            color: #00f2fe !important;
+        }
+    </style>
+    """
 
-    .module-wrapper {
-      width: 100%; max-width: 1100px;
-      background: var(--panel-bg);
-      border: 1px solid rgba(0, 242, 254, 0.25);
-      border-radius: 22px; backdrop-filter: blur(24px);
-      padding: 34px 30px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-      display: flex; flex-direction: column; gap: 24px;
-    }
-    .module-topbar {
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 16px;
-    }
-    .back-btn { color: var(--text-dim); font-size: 0.88rem; cursor: pointer; }
-    .back-btn:hover { color: var(--neon-cyan); }
+st.markdown(custom_css, unsafe_allow_html=True)
 
-    .v2t-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-    @media (max-width: 850px) { .v2t-grid { grid-template-columns: 1fr; } }
-    .upload-zone {
-      border: 2px dashed rgba(168, 85, 247, 0.4); border-radius: 16px;
-      padding: 24px 18px; text-align: center; background: rgba(14, 11, 30, 0.4);
-      cursor: pointer;
-    }
-    .video-player { width: 100%; max-height: 220px; border-radius: 12px; display: none; margin-top: 14px; }
-    .waveform-bars { display: flex; align-items: center; justify-content: center; gap: 4px; height: 42px; }
-    .wave-bar { width: 4px; height: 10px; background: var(--neon-cyan); border-radius: 4px; }
-    .wave-bar.active { animation: soundWave 0.7s infinite alternate ease-in-out; }
-    @keyframes soundWave { 0% { height: 8px; } 100% { height: 38px; background: var(--neon-violet); } }
-    .transcript-box {
-      width: 100%; height: 240px; background: rgba(5, 8, 17, 0.75);
-      border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 12px;
-      padding: 14px; color: #f8fafc; font-size: 0.9rem; resize: none; outline: none;
-    }
-  </style>
-</head>
-<body>
-
-  <div id="fx-shockwave" class="pulse-shockwave"></div>
-
-  <!-- View 1: Landing Screen -->
-  <div id="view-landing" class="view-screen active">
-    <div class="dash-logo" style="width: 100px; height: 100px; margin-bottom: 24px;" onclick="triggerLogoPower(this)">
-      <svg viewBox="0 0 100 100">
-        <polygon points="50,6 88,24 94,62 68,94 32,94 6,62 12,24" stroke="var(--neon-cyan)" stroke-width="2.5" fill="none"/>
-        <polygon points="50,18 78,32 82,60 62,82 38,82 18,60 22,32" stroke="var(--neon-blue)" stroke-width="2.5" fill="none" opacity="0.8"/>
-        <circle cx="50" cy="50" r="9" fill="var(--neon-cyan)"/>
-      </svg>
-    </div>
-    <h1 style="font-size: 2.3rem; letter-spacing: 0.2em; margin-bottom: 8px;">J.A.R.V.I.S. CORE</h1>
-    <div style="font-size: 0.8rem; letter-spacing: 0.15em; color: var(--text-dim); margin-bottom: 36px;">
-      SYSTEM READY • DESKTOP EDITION
-    </div>
-    <button class="btn-connect" onclick="triggerConnectSequence()">เริ่มต้นเชื่อมต่อระบบ</button>
-  </div>
-
-  <!-- View 2: Dashboard -->
-  <div id="view-dashboard" class="view-screen">
-    <div class="dash-header">
-      <div class="dash-brand">
-        <div class="dash-logo" onclick="triggerLogoPower(this)">
-          <svg viewBox="0 0 100 100">
-            <polygon points="50,6 88,24 94,62 68,94 32,94 6,62 12,24" stroke="var(--neon-cyan)" stroke-width="2.6" fill="none"/>
-            <polygon points="50,18 78,32 82,60 62,82 38,82 18,60 22,32" stroke="var(--neon-blue)" stroke-width="2.6" fill="none"/>
-            <circle cx="50" cy="50" r="9" fill="var(--neon-cyan)"/>
-          </svg>
-        </div>
-        <h2 class="dash-title">ระบบต่างๆ</h2>
-      </div>
-      <button class="btn-connect" style="padding: 10px 22px; font-size: 0.8rem;" onclick="switchView('view-landing')">ตัดการเชื่อมต่อ</button>
-    </div>
-
-    <div class="grid-container">
-      <div class="hud-card" style="border-color: rgba(168, 85, 247, 0.4);" onclick="switchView('view-video-text')">
-        <span class="hud-card-badge" style="color: var(--neon-violet); background: rgba(168, 85, 247, 0.15);">AUDIO EXTRACTOR</span>
-        <h3>🎬 Video to Text</h3>
-        <p>แยกแทร็กเสียงจากวิดีโอ (MP4/MOV) แล้วถอดคำพูดออกมาเป็นข้อความ</p>
-      </div>
-      <div class="hud-card" onclick="alert('โมดูล Stitch UI Designer พร้อมใช้งาน')">
-        <span class="hud-card-badge">ENGINE 01</span>
-        <h3>🎨 Stitch UI Designer</h3>
-        <p>ออกแบบและจำลองหน้าตา UI กระจกใสพร้อมพรีวิวแบบเรียลไทม์</p>
-      </div>
-      <div class="hud-card" onclick="alert('โมดูล Neural Logic Hub พร้อมใช้งาน')">
-        <span class="hud-card-badge">ENGINE 02</span>
-        <h3>⚡ Neural Logic Hub</h3>
-        <p>วิเคราะห์ตรรกะโค้ด คัดกรองข้อผิดพลาด และทดสอบรันสคริปต์อัตโนมัติ</p>
-      </div>
-      <div class="hud-card" onclick="alert('โมดูล Matrix Monitor พร้อมใช้งาน')">
-        <span class="hud-card-badge">ENGINE 03</span>
-        <h3>🌐 Matrix Monitor</h3>
-        <p>มอนิเตอร์สถานะระบบ ค่า Ping แฝง ปริมาณแรม และทราฟฟิกเครือข่าย</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- View 3: Video-to-Text Module -->
-  <div id="view-video-text" class="view-screen">
-    <div class="module-wrapper" style="border-color: rgba(168, 85, 247, 0.4);">
-      <div class="module-topbar">
-        <div class="back-btn" onclick="switchView('view-dashboard')">← ย้อนกลับไปหน้าระบบต่างๆ</div>
-        <span style="font-size: 0.8rem; color: var(--neon-violet);">NEURAL AUDIO EXTRACTION</span>
-      </div>
-      <div class="v2t-grid">
-        <div>
-          <input type="file" id="video-file-input" accept="video/*" style="display: none;" onchange="handleFileSelected(event)">
-          <div class="upload-zone" onclick="document.getElementById('video-file-input').click()">
-            <p id="upload-label" style="font-weight: 500; font-size: 0.95rem;">คลิกเพื่ออัปโหลดไฟล์วิดีโอ</p>
-            <span style="font-size: 0.78rem; color: var(--text-dim);">รองรับ MP4, WEBM, MOV</span>
-          </div>
-          <video id="preview-video" class="video-player" controls></video>
-          <div style="margin-top: 14px; background: rgba(0,0,0,0.4); border-radius: 12px; padding: 12px; border: 1px solid rgba(0, 242, 254, 0.2);">
-            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-dim); margin-bottom:8px;">
-              <span>FREQUENCY MONITOR</span>
-              <span id="audio-status" style="color: var(--neon-cyan);">STANDBY</span>
-            </div>
-            <div class="waveform-bars" id="waveform-container"></div>
-          </div>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <textarea id="output-transcript" class="transcript-box" placeholder="กด 'แยกเสียงและแปลงข้อความ' เพื่อเริ่มกระบวนการ..."></textarea>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn-connect" style="flex:1; padding:12px; border-color:var(--neon-violet);" onclick="startAudioExtraction()">⚡ แยกเสียงและแปลงข้อความ</button>
-            <button class="btn-connect" style="padding:12px 20px;" onclick="copyTranscript()">คัดลอก</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playBeep(freq = 600, duration = 0.05) {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + duration);
-    }
-
-    function triggerLogoPower(el) {
-      playBeep(1150, 0.1);
-      el.style.transform = 'scale(1.18) rotate(90deg)';
-      setTimeout(() => { el.style.transform = ''; }, 350);
-    }
-
-    function triggerConnectSequence() {
-      playBeep(850, 0.3);
-      document.getElementById('fx-shockwave').classList.add('active');
-      setTimeout(() => {
-        switchView('view-dashboard');
-        document.getElementById('fx-shockwave').classList.remove('active');
-      }, 650);
-    }
-
-    function switchView(targetViewId) {
-      playBeep(720, 0.06);
-      document.querySelectorAll('.view-screen').forEach(screen => screen.classList.remove('active'));
-      const target = document.getElementById(targetViewId);
-      if (target) target.classList.add('active');
-    }
-
-    const waveContainer = document.getElementById('waveform-container');
-    for (let i = 0; i < 28; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'wave-bar';
-      bar.style.animationDelay = `${(i * 0.05).toFixed(2)}s`;
-      waveContainer.appendChild(bar);
-    }
-
-    function handleFileSelected(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      playBeep(900, 0.08);
-      document.getElementById('upload-label').innerText = `ไฟล์: ${file.name}`;
-      const videoPlayer = document.getElementById('preview-video');
-      videoPlayer.src = URL.createObjectURL(file);
-      videoPlayer.style.display = 'block';
-      document.getElementById('audio-status').innerText = 'READY TO TRANSCRIBE';
-    }
-
-    function startAudioExtraction() {
-      const videoPlayer = document.getElementById('preview-video');
-      const outputBox = document.getElementById('output-transcript');
-      const status = document.getElementById('audio-status');
-      if (!videoPlayer.src) { alert('กรุณาเลือกไฟล์วิดีโอก่อนครับ'); return; }
-
-      playBeep(1050, 0.15);
-      status.innerText = 'EXTRACTING AUDIO TRACK...';
-      document.querySelectorAll('.wave-bar').forEach(b => b.classList.add('active'));
-
-      setTimeout(() => {
-        outputBox.value = 
-`[00:00:02] ผู้พูด: "สวัสดีครับ ระบบ J.A.R.V.I.S. ดึงคลื่นเสียงจากคลิปสำเร็จแล้ว"
-[00:00:06] ผู้พูด: "รันบน Desktop App ออฟไลน์ได้ 100% เรียบร้อยครับ"
-[00:00:10] J.A.R.V.I.S.: ถอดรหัสคลื่นความถี่และแสดงผลข้อความสมบูรณ์`;
-        document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
-        status.innerText = 'COMPLETED';
-        playBeep(1200, 0.1);
-      }, 2000);
-    }
-
-    function copyTranscript() {
-      const el = document.getElementById('output-transcript');
-      if (!el.value) return;
-      navigator.clipboard.writeText(el.value);
-      playBeep(1300, 0.08);
-      alert('คัดลอกข้อความลงคลิปบอร์ดแล้ว');
-    }
-  </script>
-</body>
-</html>
+# โลโก้แปดเหลี่ยมเรืองแสง
+STARK_LOGO_SVG = """
+<div style="display: flex; justify-content: center; align-items: center; margin-bottom: 26px;">
+  <svg viewBox="0 0 100 100" style="width: 82px; height: 82px; filter: drop-shadow(0 0 16px rgba(0, 242, 254, 0.8));">
+    <polygon points="50,6 88,24 94,62 68,94 32,94 6,62 12,24" stroke="#00f2fe" stroke-width="2.5" fill="none"/>
+    <polygon points="50,18 78,32 82,60 62,82 38,82 18,60 22,32" stroke="#38bdf8" stroke-width="2.5" fill="none" opacity="0.85"/>
+    <circle cx="50" cy="50" r="7.5" fill="#00f2fe"/>
+  </svg>
+</div>
 """
 
-if __name__ == '__main__':
-    # เปิดหน้าต่างโปรแกรมโดยตรงจากตัวแปร HTML_CONTENT
-    window = webview.create_window(
-        title='J.A.R.V.I.S. - Private Assistant',
-        html=HTML_CONTENT,
-        width=1200,
-        height=820,
-        background_color='#060913',
-        resizable=True
-    )
+# ==========================================
+# 1. หน้า Landing: ถอดแบบจากรูปภาพ
+# ==========================================
+if st.session_state.view == "landing":
+    st.markdown(STARK_LOGO_SVG, unsafe_allow_html=True)
+    st.markdown("""
+        <div style="text-align: center;">
+            <h1 style="font-size: 2.1rem; letter-spacing: 0.38em; font-weight: 700; color: #ffffff; margin-bottom: 8px; text-transform: uppercase;">
+                J . A . R . V . I . S . &nbsp; C O R E
+            </h1>
+            <p style="font-size: 0.72rem; letter-spacing: 0.22em; color: #738a9c; margin-bottom: 34px; text-transform: uppercase;">
+                SYSTEM READY • DESKTOP EDITION
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("เริ่มต้นเชื่อมต่อระบบ"):
+        switch_to("dashboard")
+
+# ==========================================
+# 2. หน้า Dashboard: ระบบต่างๆ
+# ==========================================
+elif st.session_state.view == "dashboard":
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        st.markdown("""
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+                <h1 style="font-size: 1.85rem; font-weight: 700; background: linear-gradient(135deg, #ffffff 30%, #00f2fe 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">
+                    ระบบต่างๆ
+                </h1>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        if st.button("ตัดการเชื่อมต่อ"):
+            switch_to("landing")
+
+    st.markdown("<hr style='border: none; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 24px;'>", unsafe_allow_html=True)
+
+    c_left, c_right = st.columns(2)
+    with c_left:
+        st.markdown("""
+            <div style="background: rgba(11, 19, 38, 0.78); border: 1px solid rgba(168, 85, 247, 0.45); border-radius: 16px; padding: 22px; margin-bottom: 12px;">
+                <span style="font-size: 0.72rem; letter-spacing: 0.12em; color: #a855f7; background: rgba(168, 85, 247, 0.15); padding: 4px 10px; border-radius: 20px;">AUDIO EXTRACTOR</span>
+                <h3 style="margin-top: 12px; margin-bottom: 6px;">🎬 Video to Text</h3>
+                <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">แยกแทร็กเสียงจากวิดีโอ (MP4/MOV) แล้วถอดคำพูดออกมาเป็นข้อความจริงด้วย Gemini AI</p>
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("เปิดใช้งาน Video to Text ⚡", use_container_width=True):
+            switch_to("v2t")
+
+    with c_right:
+        st.markdown("""
+            <div style="background: rgba(11, 19, 38, 0.78); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 16px; padding: 22px; margin-bottom: 12px;">
+                <span style="font-size: 0.72rem; letter-spacing: 0.12em; color: #00f2fe; background: rgba(0, 242, 254, 0.1); padding: 4px 10px; border-radius: 20px;">CORE BRAIN</span>
+                <h3 style="margin-top: 12px; margin-bottom: 6px;">⚡ J.A.R.V.I.S. Chat & Logic</h3>
+                <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">ระบบคุยสั่งการอัตโนมัติ คำนวณโค้ดเบื้องหลัง และจำประวัติการคุยต่อเนื่อง</p>
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("เปิดหน้าต่างแชท J.A.R.V.I.S. 💬", use_container_width=True):
+            switch_to("chat")
+
+# ==========================================
+# 3. หน้า Video to Text: แปลงไฟล์จริง
+# ==========================================
+elif st.session_state.view == "v2t":
+    if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
+        switch_to("dashboard")
+
+    st.markdown("<h2 style='color: #a855f7; margin-top: 14px;'>🎬 Video to Text Transcriber</h2>", unsafe_allow_html=True)
     
-    webview.start()
+    col_v1, col_v2 = st.columns([1, 1])
+    with col_v1:
+        uploaded_video = st.file_uploader("เลือกไฟล์วิดีโอ (MP4, MOV, WEBM)", type=["mp4", "mov", "webm"])
+        if uploaded_video:
+            st.video(uploaded_video)
+
+    with col_v2:
+        if "v2t_result" not in st.session_state:
+            st.session_state.v2t_result = ""
+
+        if st.button("⚡ แยกเสียงและแปลงข้อความ", use_container_width=True):
+            if not uploaded_video:
+                st.error("กรุณาเลือกไฟล์วิดีโอก่อน")
+            elif not api_key:
+                st.error("ไม่พบคีย์ GEMINI_API_KEY")
+            else:
+                with st.spinner("J.A.R.V.I.S. กำลังวิเคราะห์คลื่นเสียง..."):
+                    try:
+                        client = genai.Client(api_key=api_key)
+                        suffix = "." + uploaded_video.name.split(".")[-1]
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                            tmp.write(uploaded_video.getvalue())
+                            tmp_path = tmp.name
+
+                        video_file = client.files.upload(file=tmp_path)
+                        while video_file.state.name == "PROCESSING":
+                            time.sleep(2)
+                            video_file = client.files.get(name=video_file.name)
+
+                        res = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=[video_file, "กรุณาถอดบทสนทนาจากคลิปนี้ตาม Timestamp และสรุปเนื้อหาสำคัญเป็นภาษาไทย"]
+                        )
+                        st.session_state.v2t_result = res.text
+                        os.remove(tmp_path)
+                        st.success("ถอดเสียงสำเร็จ!")
+                    except Exception as e:
+                        st.error(f"เกิดข้อผิดพลาด: {e}")
+
+        st.text_area("ข้อความที่ได้:", value=st.session_state.v2t_result, height=260)
+
+# ==========================================
+# 4. หน้า Chat: สนทนากับ J.A.R.V.I.S.
+# ==========================================
+elif st.session_state.view == "chat":
+    if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
+        switch_to("dashboard")
+
+    st.markdown("<h2 style='color: #00f2fe; margin-top: 14px;'>💬 J.A.R.V.I.S. Neural Assistant</h2>", unsafe_allow_html=True)
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for m in st.session_state.messages:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    if user_input := st.chat_input("สั่งการ J.A.R.V.I.S...."):
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        with st.chat_message("assistant"):
+            with st.spinner("กำลังประมวลผล..."):
+                try:
+                    client = genai.Client(api_key=api_key)
+                    res = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=user_input,
+                        config=types.GenerateContentConfig(
+                            system_instruction="You are J.A.R.V.I.S., a witty and elite AI assistant. Always respond concisely in Thai.",
+                            temperature=0.6,
+                        )
+                    )
+                    reply = res.text
+                    st.markdown(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาด: {e}")
