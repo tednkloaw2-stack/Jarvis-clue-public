@@ -15,7 +15,7 @@ except Exception:
 import streamlit as st
 import re
 import streamlit.components.v1 as components
-from groq import Groq
+import google.generativeai as genai
 from duckduckgo_search import DDGS
 
 st.set_page_config(
@@ -25,30 +25,29 @@ st.set_page_config(
 )
 
 st.title("🎨 J.A.R.V.I.S. Clue + Stitch UI Engine")
-st.markdown("ระบบผู้ช่วยอัจฉริยะที่ผสานพลังดีไซน์แบบ Google Stitch: ออกแบบหน้า UI, เขียนโค้ด และพรีวิวผลลัพธ์แบบเรียลไทม์")
+st.markdown("ระบบผู้ช่วยอัจฉริยะที่ผสานพลังดีไซน์แบบ Google Stitch (ขับเคลื่อนด้วย Google Gemini): ออกแบบหน้า UI, เขียนโค้ด และพรีวิวผลลัพธ์แบบเรียลไทม์")
 
-# ตรวจสอบและดึงค่า API Key อย่างปลอดภัย
 try:
-    raw_api_key = st.secrets.get("GROQ_API_KEY", "")
+    raw_api_key = st.secrets.get("GEMINI_API_KEY", "")
 except Exception:
     raw_api_key = ""
 
-api_key = str(raw_api_key).strip().encode("ascii", "ignore").decode("ascii")
+api_key = str(raw_api_key).strip()
 
-if not api_key or api_key == "ใส่รหัส API Key ของ Groq ที่นี่":
-    st.error("⚠️ ไม่พบรหัส GROQ_API_KEY ใน Streamlit Secrets! กรุณาไปที่เมนู Settings -> Secrets ของแอป แล้วใส่รหัสให้เรียบร้อย")
+if not api_key:
+    st.error("⚠️ ไม่พบรหัส GEMINI_API_KEY ใน Streamlit Secrets! กรุณาตรวจสอบการตั้งค่า Settings -> Secrets อีกครั้ง")
     st.stop()
 
 try:
-    client = Groq(api_key=api_key)
+    genai.configure(api_key=api_key)
 except Exception as e:
-    st.error(f"⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Groq Client: {str(e)}")
+    st.error(f"⚠️ เกิดข้อผิดพลาดในการตั้งค่า Gemini API: {str(e)}")
     st.stop()
 
 with st.sidebar:
     st.header("⚙️ แผงควบคุม Stitch Engine")
     use_search = st.checkbox("🔍 เปิดใช้งานค้นหาข้อมูลเว็บ", value=True)
-    model_choice = st.selectbox("🤖 เลือกโมเดล AI", ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"])
+    model_choice = st.selectbox("🤖 เลือกโมเดล AI", ["gemini-1.5-flash", "gemini-1.5-pro"])
     if st.button("🗑️ ล้างประวัติการแชท"):
         st.session_state.messages = []
         st.rerun()
@@ -103,26 +102,20 @@ if prompt := st.chat_input("พิมพ์สั่งออกแบบ UI ห
                 "Be proactive, precise, and creative."
             )
 
-            messages_payload = [{"role": "system", "content": system_content}]
-
+            full_prompt = system_content + "\n\n"
             if external_context:
-                messages_payload.append({
-                    "role": "system",
-                    "content": f"=== EXTERNAL WEB DATA (READ-ONLY) ===\n{external_context}\n======================================="
-                })
+                full_prompt += f"=== EXTERNAL WEB DATA ===\n{external_context}\n==========================\n\n"
 
             for m in st.session_state.messages:
-                messages_payload.append({"role": m["role"], "content": m["content"]})
+                role_prefix = "User: " if m["role"] == "user" else "Assistant: "
+                full_prompt += f"{role_prefix}{m['content']}\n"
 
             try:
-                chat_completion = client.chat.completions.create(
-                    model=model_choice,
-                    messages=messages_payload,
-                    temperature=0.7,
-                )
-                reply = chat_completion.choices[0].message.content
+                current_model = genai.GenerativeModel(model_choice)
+                response = current_model.generate_content(full_prompt)
+                reply = response.text
             except Exception as e:
-                reply = f"เกิดข้อผิดพลาดในการเชื่อมต่อคลาวด์: {str(e)}"
+                reply = f"เกิดข้อผิดพลาดในการเชื่อมต่อ Google Gemini: {str(e)}"
 
             html_match = re.search(r'```html\s*(.*?)\s*```', reply, re.DOTALL)
             html_preview_code = html_match.group(1) if html_match else None
