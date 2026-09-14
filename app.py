@@ -27,7 +27,9 @@ st.set_page_config(
 st.title("🎨 J.A.R.V.I.S. Clue + Stitch UI Engine")
 st.markdown("ระบบผู้ช่วยอัจฉริยะที่ผสานพลังดีไซน์แบบ Google Stitch: ออกแบบหน้า UI, เขียนโค้ด และพรีวิวผลลัพธ์แบบเรียลไทม์")
 
-api_key = st.secrets.get("GROQ_API_KEY")
+raw_api_key = st.secrets.get("GROQ_API_KEY", "")
+api_key = str(raw_api_key).strip().encode("ascii", "ignore").decode("ascii")
+
 if not api_key:
     st.error("⚠️ กรุณาตั้งค่า GROQ_API_KEY ใน Streamlit Secrets ก่อนใช้งาน")
     st.stop()
@@ -97,7 +99,7 @@ if prompt := st.chat_input("พิมพ์สั่งออกแบบ UI ห
             if external_context:
                 messages_payload.append({
                     "role": "system",
-                    "content": f"=== EXTER널 WEB DATA (READ-ONLY) ===\n{external_context}\n======================================="
+                    "content": f"=== EXTERNAL WEB DATA (READ-ONLY) ===\n{external_context}\n======================================="
                 })
 
             for m in st.session_state.messages:
