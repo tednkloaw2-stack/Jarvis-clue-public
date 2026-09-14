@@ -1,18 +1,20 @@
-import streamlit as st
 import os
-import re
+os.environ["PYTHONIOENCODING"] = "utf-8"
 import sys
-import io
+
+try:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
+import streamlit as st
+import re
 import streamlit.components.v1 as components
 from groq import Groq
 from duckduckgo_search import DDGS
-
-# แก้ไขปัญหา ASCII Encoding สำหรับภาษาไทย
-try:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-except Exception:
-    pass
 
 st.set_page_config(
     page_title="J.A.R.V.I.S. Clue (Stitch UI Engine)",
