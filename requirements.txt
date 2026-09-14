@@ -1,3 +1,2 @@
 streamlit
-groq
-duckduckgo_search
+google-generativeai
