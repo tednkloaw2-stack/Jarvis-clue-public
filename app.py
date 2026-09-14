@@ -27,14 +27,23 @@ st.set_page_config(
 st.title("🎨 J.A.R.V.I.S. Clue + Stitch UI Engine")
 st.markdown("ระบบผู้ช่วยอัจฉริยะที่ผสานพลังดีไซน์แบบ Google Stitch: ออกแบบหน้า UI, เขียนโค้ด และพรีวิวผลลัพธ์แบบเรียลไทม์")
 
-raw_api_key = st.secrets.get("GROQ_API_KEY", "")
+# ตรวจสอบและดึงค่า API Key อย่างปลอดภัย
+try:
+    raw_api_key = st.secrets.get("GROQ_API_KEY", "")
+except Exception:
+    raw_api_key = ""
+
 api_key = str(raw_api_key).strip().encode("ascii", "ignore").decode("ascii")
 
-if not api_key:
-    st.error("⚠️ กรุณาตั้งค่า GROQ_API_KEY ใน Streamlit Secrets ก่อนใช้งาน")
+if not api_key or api_key == "ใส่รหัส API Key ของ Groq ที่นี่":
+    st.error("⚠️ ไม่พบรหัส GROQ_API_KEY ใน Streamlit Secrets! กรุณาไปที่เมนู Settings -> Secrets ของแอป แล้วใส่รหัสให้เรียบร้อย")
     st.stop()
 
-client = Groq(api_key=api_key)
+try:
+    client = Groq(api_key=api_key)
+except Exception as e:
+    st.error(f"⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Groq Client: {str(e)}")
+    st.stop()
 
 with st.sidebar:
     st.header("⚙️ แผงควบคุม Stitch Engine")
