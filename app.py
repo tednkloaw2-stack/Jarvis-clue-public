@@ -21,7 +21,10 @@ genai.configure(api_key=api_key)
 
 with st.sidebar:
     st.header("⚙️ ตั้งค่าระบบ")
-    model_choice = st.selectbox("🤖 เลือกโมเดล AI", ["gemini-2.0-flash", "gemini-1.5-flash"])
+    model_choice = st.selectbox(
+        "🤖 เลือกโมเดล AI", 
+        ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
+    )
     if st.button("🗑️ ล้างประวัติการแชท"):
         st.session_state.messages = []
         st.rerun()
@@ -55,12 +58,32 @@ if prompt := st.chat_input("พิมพ์สั่งออกแบบ UI เ
                 role_prefix = "User: " if m["role"] == "user" else "Assistant: "
                 full_prompt += f"{role_prefix}{m['content']}\n"
 
-            try:
-                current_model = genai.GenerativeModel(model_choice)
-                response = current_model.generate_content(full_prompt)
-                reply = response.text
-            except Exception as e:
-                reply = f"เกิดข้อผิดพลาด: {str(e)}"
+            # ระบบสลับโมเดลอัตโนมัติ (Fallback Loop) ป้องกัน Error 404 ซ้ำซ้อน
+            models_to_try = [
+                model_choice, 
+                "gemini-3.8-flash", 
+                "gemini-3.7-flash", 
+                "gemini-3.6-flash", 
+                "gemini-3.5-flash", 
+                "gemini-1.5-flash"
+            ]
+            seen = set()
+            unique_models = [m for m in models_to_try if not (m in seen or seen.add(m))]
+
+            reply = None
+            last_error = ""
+            for m_name in unique_models:
+                try:
+                    current_model = genai.GenerativeModel(m_name)
+                    response = current_model.generate_content(full_prompt)
+                    reply = response.text
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            if not reply:
+                reply = f"เกิดข้อผิดพลาดในการเชื่อมต่อ: {last_error}"
 
             html_match = re.search(r'```html\s*(.*?)\s*```', reply, re.DOTALL)
             html_preview_code = html_match.group(1) if html_match else None
