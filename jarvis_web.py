@@ -157,40 +157,38 @@ def trigger_jarvis_action(message, voice_text=None):
       sanitize_for_speech(voice_text).replace("\\", "\\\\").replace('"', '\\"')
   )
 
-  st.components.v1.html(
-      f"""
+  js_template = """
         <script>
-            (function() {{
+            (function() {
                 if (!window.speechSynthesis) return;
                 window.speechSynthesis.cancel();
 
-                function executeSpeech() {{
-                    const utter = new SpeechSynthesisUtterance("{phonetic_text}");
+                function executeSpeech() {
+                    const utter = new SpeechSynthesisUtterance("__PHONETIC_TEXT__");
                     utter.lang = "th-TH";
                     utter.rate = 1.02;
                     utter.pitch = 0.92;
 
                     const voices = window.speechSynthesis.getVoices();
                     let bestVoice = voices.find(v => v.lang.includes("th") && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Online")));
-                    if (!bestVoice) {{
+                    if (!bestVoice) {
                         bestVoice = voices.find(v => v.lang.includes("th"));
-                    }}
+                    }
                     if (bestVoice) utter.voice = bestVoice;
 
                     window.speechSynthesis.speak(utter);
-                }}
+                }
 
-                if (window.speechSynthesis.getVoices().length > 0) {{
+                if (window.speechSynthesis.getVoices().length > 0) {
                     executeSpeech();
-                }} else {{
+                } else {
                     window.speechSynthesis.onvoiceschanged = executeSpeech;
                 }
-            }})();
+            })();
         </script>
-    """,
-      height=0,
-      width=0,
-  )
+    """
+  js_code = js_template.replace("__PHONETIC_TEXT__", phonetic_text)
+  st.components.v1.html(js_code, height=0, width=0)
 
 
 if "view" not in st.session_state:
