@@ -1,8 +1,18 @@
 import streamlit as st
+import os
 import re
+import sys
+import io
 import streamlit.components.v1 as components
 from groq import Groq
 from duckduckgo_search import DDGS
+
+# แก้ไขปัญหา ASCII Encoding สำหรับภาษาไทย
+try:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+except Exception:
+    pass
 
 st.set_page_config(
     page_title="J.A.R.V.I.S. Clue (Stitch UI Engine)",
@@ -40,8 +50,8 @@ def secure_web_search(query: str) -> str:
             sanitized = [sanitize_text(res) for res in raw_results if res]
             if sanitized:
                 return "\n---\n".join(sanitized)
-    except Exception as e:
-        print(f"Search Error: {e}")
+    except Exception:
+        pass
     return ""
 
 if "messages" not in st.session_state:
@@ -97,9 +107,8 @@ if prompt := st.chat_input("พิมพ์สั่งออกแบบ UI ห
                 )
                 reply = chat_completion.choices[0].message.content
             except Exception as e:
-                reply = f"เกิดข้อผิดพลาด: {str(e)}"
+                reply = f"เกิดข้อผิดพลาดในการเชื่อมต่อคลาวด์: {str(e)}"
 
-            # ดึงโค้ด HTML ออกมาทำ Live Preview แบบ Stitch
             html_match = re.search(r'```html\s*(.*?)\s*```', reply, re.DOTALL)
             html_preview_code = html_match.group(1) if html_match else None
 
