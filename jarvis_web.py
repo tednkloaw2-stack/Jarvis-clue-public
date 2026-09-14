@@ -539,13 +539,13 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
             if a_path and a_path != v_path and os.path.exists(a_path):
               os.remove(a_path)
 
-status_tag = (
-    "COMPLETED"
-    if st.session_state.transcribed_text != "รอการประมวลผล..."
-    else "READY"
-)
-st.markdown(
-    f"""
+  status_tag = (
+      "COMPLETED"
+      if st.session_state.transcribed_text != "รอการประมวลผล..."
+      else "READY"
+  )
+  st.markdown(
+      f"""
 <div style='margin-top: 24px; padding: 14px 18px; border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 8px; background: rgba(5, 10, 22, 0.6);'>
     <div style='display: flex; justify-content: space-between; font-size: 0.78rem; color: #738a9c; margin-bottom: 8px;'>
         <span>FREQUENCY MONITOR</span>
@@ -556,8 +556,8 @@ st.markdown(
     </div>
 </div>
 """,
-    unsafe_allow_html=True,
-)
+      unsafe_allow_html=True,
+  )
 
 # ========================================================
 # 4. หน้า Chat
