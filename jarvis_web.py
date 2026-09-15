@@ -123,7 +123,6 @@ def sanitize_for_speech(text):
       "JARVIS": "จาร์วิส",
       "Dashboard": "แดชบอร์ด",
       "Video to Text": "วิดีโอ ทู เท็กซ์",
-      "Video to MP3": "วิดีโอ ทู เอ็มพีสาม",
       "Stitch UI Designer": "สติทช์ ยูไอ ดีไซเนอร์",
       "Matrix Monitor": "เมทริกซ์ มอนิเตอร์",
       "Streaming": "สตรีมมิ่ง",
@@ -273,7 +272,7 @@ elif st.session_state.view == "dashboard":
             <div style="background: rgba(11, 19, 38, 0.75); border: 1px solid rgba(168, 85, 247, 0.45); border-radius: 14px; padding: 22px; margin-bottom: 12px;">
                 <span style="font-size: 0.72rem; color: #a855f7; background: rgba(168, 85, 247, 0.15); padding: 4px 10px; border-radius: 20px;">ACOUSTIC ENGINE</span>
                 <h3 style="margin-top: 12px; margin-bottom: 6px;">🎬 Video to Text</h3>
-                <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">สกัดคลื่นเสียงบริสุทธิ์ ถอดคำพูดและเนื้อเพลงตามเวลาจริง</p>
+                <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">สกัดคลื่นเสียงบริสุทธิ์ ถอดคำพูดและเนื้อเพลงตามเวลาจริง พร้อมแปลง MP3</p>
             </div>
         """,
         unsafe_allow_html=True,
@@ -282,23 +281,6 @@ elif st.session_state.view == "dashboard":
         "เปิดใช้งาน Video to Text ⚡", key="btn_v2t", use_container_width=True
     ):
       switch_to("v2t")
-
-    st.markdown(
-        """
-            <div style="background: rgba(11, 19, 38, 0.75); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 14px; padding: 22px; margin-top: 16px; margin-bottom: 12px;">
-                <span style="font-size: 0.72rem; color: #00f2fe; background: rgba(0, 242, 254, 0.1); padding: 4px 10px; border-radius: 20px;">CONVERTER ENGINE</span>
-                <h3 style="margin-top: 12px; margin-bottom: 6px;">🎵 Video to MP3</h3>
-                <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">แปลงไฟล์วิดีโอเป็นไฟล์ MP3 เพื่อดาวน์โหลดเก็บไว้ใช้งาน</p>
-            </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button(
-        "เปิด Video to MP3 Converter 🎵",
-        key="btn_converter",
-        use_container_width=True,
-    ):
-      switch_to("converter")
 
     st.markdown(
         """
@@ -347,7 +329,7 @@ elif st.session_state.view == "dashboard":
       switch_to("matrix")
 
 # ========================================================
-# 3. หน้า Video to Text
+# 3. หน้า Video to Text (เพิ่มฟังก์ชันแปลงและโหลด MP3 ไว้ตรงนี้)
 # ========================================================
 elif st.session_state.view == "v2t":
   col_t1, col_t2 = st.columns([4, 1])
@@ -371,17 +353,66 @@ elif st.session_state.view == "v2t":
 
   with col1:
     uploaded_video = st.file_uploader(
-        "รองรับ MP4, WEBM, MOV, MP3, WAV",
+        "รองรับ MP4, WEBM, MOV, MP3, WAV, M4A",
         type=["mp4", "webm", "mov", "mp3", "wav", "m4a"],
     )
     if uploaded_video:
-      if uploaded_video.name.lower().endswith(
-          (".mp3", ".wav", ".m4a")
-      ):
+      if uploaded_video.name.lower().endswith((".mp3", ".wav", ".m4a")):
         st.audio(uploaded_video)
       else:
         st.video(uploaded_video)
       st.caption(f"ไฟล์: {uploaded_video.name}")
+
+      # เพิ่มปุ่มสกัดและดาวน์โหลด MP3 ในหน้านี้โดยตรง
+      if not uploaded_video.name.lower().endswith((".mp3", ".wav", ".m4a")):
+        st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+        if st.button("🎵 สกัดเสียงเป็น MP3 แล้วดาวน์โหลดเก็บไว้", use_container_width=True):
+          trigger_jarvis_action("กำลังแปลงไฟล์ MP3", "กำลังสกัดเสียงเป็น MP3 กรุณารอสักครู่ครับ")
+          with st.spinner("J.A.R.V.I.S. กำลังแยกแทร็กเสียง..."):
+            v_path, mp3_path = None, None
+            try:
+              ext = "." + uploaded_video.name.split(".")[-1]
+              with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_vid:
+                tmp_vid.write(uploaded_video.getvalue())
+                v_path = tmp_vid.name
+
+              mp3_path = v_path + ".mp3"
+              if VideoFileClip is not None:
+                video_clip = VideoFileClip(v_path)
+                if video_clip.audio is not None:
+                  video_clip.audio.write_audiofile(mp3_path, logger=None)
+                  video_clip.close()
+
+                  base_name = os.path.splitext(uploaded_video.name)[0]
+                  with open(mp3_path, "rb") as f_mp3:
+                    mp3_data = f_mp3.data if hasattr(f_mp3, 'data') else f_mp3.read()
+                    # เปิดไฟล์ใหม่เพื่ออ่าน bytes ดาวน์โหลด
+                  with open(mp3_path, "rb") as f_down:
+                    st.download_button(
+                        label="📥 คลิกที่นี่เพื่อดาวน์โหลดไฟล์ MP3",
+                        data=f_down.read(),
+                        file_name=f"{base_name}.mp3",
+                        mime="audio/mp3",
+                        use_container_width=True,
+                    )
+                  trigger_jarvis_action("แยกไฟล์ MP3 สำเร็จ", "ไฟล์ MP3 พร้อมดาวน์โหลดแล้วครับ")
+                  st.success("✅ แยกเสียงเป็น MP3 สำเร็จ สามารถกดดาวน์โหลดได้เลยครับ")
+                else:
+                  video_clip.close()
+                  st.warning("⚠️ ไม่พบแทร็กเสียงในไฟล์วิดีโอนี้ครับ")
+            except Exception as e:
+              st.error(f"❌ เกิดข้อผิดพลาด: {e}")
+            finally:
+              if v_path and os.path.exists(v_path):
+                try:
+                  os.remove(v_path)
+                except Exception:
+                  pass
+              if mp3_path and os.path.exists(mp3_path):
+                try:
+                  os.remove(mp3_path)
+                except Exception:
+                  pass
 
   with col2:
     if "transcribed_text" not in st.session_state:
@@ -438,7 +469,6 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
         vid_path = tmp_vid.name
 
       target_path = vid_path
-      # ถ้าเป็นไฟล์เสียงอยู่แล้ว (.mp3, .wav) ไม่ต้องแปลงซ้ำ
       if not file_obj.name.lower().endswith((".mp3", ".wav", ".m4a")):
         if VideoFileClip is not None:
           try:
@@ -486,7 +516,7 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
     if run_standard:
       if not uploaded_video:
         trigger_jarvis_action(
-            "คำเตือน: ไม่พบไฟล์", "กรุณาเลือกไฟล์วิดีโอก่อนทำการประมวลผลครับ"
+            "คำเตือน:ไม่พบไฟล์", "กรุณาเลือกไฟล์วิดีโอก่อนทำการประมวลผลครับ"
         )
       elif not api_key:
         st.error("ไม่พบคีย์ API ในระบบ")
@@ -586,105 +616,7 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
   )
 
 # ========================================================
-# 4. หน้า Video to MP3 Converter (เพิ่มใหม่)
-# ========================================================
-elif st.session_state.view == "converter":
-  col_c1, col_c2 = st.columns([4, 1])
-  with col_c1:
-    if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
-      switch_to("dashboard")
-  with col_c2:
-    st.markdown(
-        "<p style='text-align: right; color: #00f2fe; font-size:"
-        " 0.82rem;'>AUDIO EXTRACTION TOOL</p>",
-        unsafe_allow_html=True,
-    )
-
-  st.markdown(
-      "<hr style='border: none; border-bottom: 1px solid"
-      " rgba(255,255,255,0.06); margin-bottom: 20px;'>",
-      unsafe_allow_html=True,
-  )
-
-  col_cv1, col_cv2 = st.columns([1, 1], gap="medium")
-
-  with col_cv1:
-    conv_file = st.file_uploader(
-        "อัปโหลดไฟล์วิดีโอ (MP4, MOV, WEBM, MKV)",
-        type=["mp4", "mov", "webm", "mkv"],
-        key="conv_uploader",
-    )
-    if conv_file is not None:
-      st.video(conv_file)
-      st.caption(f"ไฟล์ที่เลือก: {conv_file.name}")
-
-  with col_cv2:
-    st.markdown(
-        "<h3 style='color: #00f2fe; margin-top: 0;'>แปลงไฟล์ Video เป็น"
-        " MP3</h3>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "เหมาะสำหรับแยกเสียงจากคลิปยาว แล้วนำไฟล์ MP3 ไปอัปโหลดต่อในหน้า"
-        " Video to Text"
-    )
-
-    if conv_file is not None:
-      if st.button("🚀 เริ่มแปลงเป็น MP3", use_container_width=True):
-        trigger_jarvis_action(
-            "กำลังแปลงไฟล์", "กำลังสกัดเสียงเป็น MP3 กรุณารอสักครู่ครับ"
-        )
-        with st.spinner("J.A.R.V.I.S. กำลังแยกแทร็กเสียง..."):
-          v_path = None
-          mp3_path = None
-          try:
-            ext = os.path.splitext(conv_file.name)[1]
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=ext
-            ) as tmp_vid:
-              tmp_vid.write(conv_file.getvalue())
-              v_path = tmp_vid.name
-
-            mp3_path = v_path + ".mp3"
-            video_clip = VideoFileClip(v_path)
-            if video_clip.audio is not None:
-              video_clip.audio.write_audiofile(mp3_path, logger=None)
-              video_clip.close()
-
-              base_name = os.path.splitext(conv_file.name)[0]
-              with open(mp3_path, "rb") as audio_file:
-                audio_bytes = audio_file.read()
-                st.audio(audio_bytes, format="audio/mp3")
-                st.download_button(
-                    label="📥 ดาวน์โหลดไฟล์ MP3",
-                    data=audio_bytes,
-                    file_name=f"{base_name}.mp3",
-                    mime="audio/mp3",
-                    use_container_width=True,
-                )
-              trigger_jarvis_action(
-                  "แปลงไฟล์สำเร็จ", "แปลงเป็นไฟล์ MP3 เรียบร้อยแล้วครับ"
-              )
-              st.success("✅ แปลงไฟล์สำเร็จพร้อมดาวน์โหลดแล้วครับ!")
-            else:
-              video_clip.close()
-              st.warning("⚠️ ไม่พบแทร็กเสียงในไฟล์วิดีโอนี้ครับ")
-          except Exception as e:
-            st.error(f"❌ เกิดข้อผิดพลาดระหว่างแปลงไฟล์: {e}")
-          finally:
-            if v_path and os.path.exists(v_path):
-              try:
-                os.remove(v_path)
-              except Exception:
-                pass
-            if mp3_path and os.path.exists(mp3_path):
-              try:
-                os.remove(mp3_path)
-              except Exception:
-                pass
-
-# ========================================================
-# 5. หน้า Chat
+# 4. หน้า Chat
 # ========================================================
 elif st.session_state.view == "chat":
   if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
@@ -736,7 +668,7 @@ elif st.session_state.view == "chat":
           st.error(f"เกิดข้อผิดพลาด: {e}")
 
 # ========================================================
-# 6. หน้า Stitch UI Designer
+# 5. หน้า Stitch UI Designer
 # ========================================================
 elif st.session_state.view == "stitch":
   if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
@@ -772,7 +704,7 @@ elif st.session_state.view == "stitch":
     )
 
 # ========================================================
-# 7. หน้า Matrix Monitor
+# 6. หน้า Matrix Monitor
 # ========================================================
 elif st.session_state.view == "matrix":
   if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
