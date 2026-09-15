@@ -123,6 +123,7 @@ def sanitize_for_speech(text):
       "JARVIS": "จาร์วิส",
       "Dashboard": "แดชบอร์ด",
       "Video to Text": "วิดีโอ ทู เท็กซ์",
+      "Video to MP3": "วิดีโอ ทู เอ็มพีสาม",
       "Stitch UI Designer": "สติทช์ ยูไอ ดีไซเนอร์",
       "Matrix Monitor": "เมทริกซ์ มอนิเตอร์",
       "Streaming": "สตรีมมิ่ง",
@@ -285,6 +286,23 @@ elif st.session_state.view == "dashboard":
     st.markdown(
         """
             <div style="background: rgba(11, 19, 38, 0.75); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 14px; padding: 22px; margin-top: 16px; margin-bottom: 12px;">
+                <span style="font-size: 0.72rem; color: #00f2fe; background: rgba(0, 242, 254, 0.1); padding: 4px 10px; border-radius: 20px;">CONVERTER ENGINE</span>
+                <h3 style="margin-top: 12px; margin-bottom: 6px;">🎵 Video to MP3</h3>
+                <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">แปลงไฟล์วิดีโอเป็นไฟล์ MP3 เพื่อดาวน์โหลดเก็บไว้ใช้งาน</p>
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button(
+        "เปิด Video to MP3 Converter 🎵",
+        key="btn_converter",
+        use_container_width=True,
+    ):
+      switch_to("converter")
+
+    st.markdown(
+        """
+            <div style="background: rgba(11, 19, 38, 0.75); border: 1px solid rgba(0, 242, 254, 0.25); border-radius: 14px; padding: 22px; margin-top: 16px; margin-bottom: 12px;">
                 <span style="font-size: 0.72rem; color: #00f2fe; background: rgba(0, 242, 254, 0.1); padding: 4px 10px; border-radius: 20px;">ENGINE 01</span>
                 <h3 style="margin-top: 12px; margin-bottom: 6px;">🎨 Stitch UI Designer</h3>
                 <p style="color: #94a3b8; font-size: 0.88rem; line-height: 1.5;">ออกแบบหน้าจอแสดงผลกระจกไซไฟแบบเรียลไทม์</p>
@@ -353,10 +371,16 @@ elif st.session_state.view == "v2t":
 
   with col1:
     uploaded_video = st.file_uploader(
-        "รองรับ MP4, WEBM, MOV", type=["mp4", "webm", "mov"]
+        "รองรับ MP4, WEBM, MOV, MP3, WAV",
+        type=["mp4", "webm", "mov", "mp3", "wav", "m4a"],
     )
     if uploaded_video:
-      st.video(uploaded_video)
+      if uploaded_video.name.lower().endswith(
+          (".mp3", ".wav", ".m4a")
+      ):
+        st.audio(uploaded_video)
+      else:
+        st.video(uploaded_video)
       st.caption(f"ไฟล์: {uploaded_video.name}")
 
   with col2:
@@ -414,18 +438,20 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
         vid_path = tmp_vid.name
 
       target_path = vid_path
-      if VideoFileClip is not None:
-        try:
-          audio_path = vid_path + ".mp3"
-          video_clip = VideoFileClip(vid_path)
-          if video_clip.audio is not None:
-            video_clip.audio.write_audiofile(audio_path, logger=None)
-            video_clip.close()
-            target_path = audio_path
-          else:
-            video_clip.close()
-        except Exception:
-          pass
+      # ถ้าเป็นไฟล์เสียงอยู่แล้ว (.mp3, .wav) ไม่ต้องแปลงซ้ำ
+      if not file_obj.name.lower().endswith((".mp3", ".wav", ".m4a")):
+        if VideoFileClip is not None:
+          try:
+            audio_path = vid_path + ".mp3"
+            video_clip = VideoFileClip(vid_path)
+            if video_clip.audio is not None:
+              video_clip.audio.write_audiofile(audio_path, logger=None)
+              video_clip.close()
+              target_path = audio_path
+            else:
+              video_clip.close()
+          except Exception:
+            pass
 
       uploaded_file = client.files.upload(file=target_path)
       while uploaded_file.state.name == "PROCESSING":
@@ -560,7 +586,105 @@ Transcribe all vocalized speech and sung lyrics sequentially from 00:00 to EOF.
   )
 
 # ========================================================
-# 4. หน้า Chat
+# 4. หน้า Video to MP3 Converter (เพิ่มใหม่)
+# ========================================================
+elif st.session_state.view == "converter":
+  col_c1, col_c2 = st.columns([4, 1])
+  with col_c1:
+    if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
+      switch_to("dashboard")
+  with col_c2:
+    st.markdown(
+        "<p style='text-align: right; color: #00f2fe; font-size:"
+        " 0.82rem;'>AUDIO EXTRACTION TOOL</p>",
+        unsafe_allow_html=True,
+    )
+
+  st.markdown(
+      "<hr style='border: none; border-bottom: 1px solid"
+      " rgba(255,255,255,0.06); margin-bottom: 20px;'>",
+      unsafe_allow_html=True,
+  )
+
+  col_cv1, col_cv2 = st.columns([1, 1], gap="medium")
+
+  with col_cv1:
+    conv_file = st.file_uploader(
+        "อัปโหลดไฟล์วิดีโอ (MP4, MOV, WEBM, MKV)",
+        type=["mp4", "mov", "webm", "mkv"],
+        key="conv_uploader",
+    )
+    if conv_file is not None:
+      st.video(conv_file)
+      st.caption(f"ไฟล์ที่เลือก: {conv_file.name}")
+
+  with col_cv2:
+    st.markdown(
+        "<h3 style='color: #00f2fe; margin-top: 0;'>แปลงไฟล์ Video เป็น"
+        " MP3</h3>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "เหมาะสำหรับแยกเสียงจากคลิปยาว แล้วนำไฟล์ MP3 ไปอัปโหลดต่อในหน้า"
+        " Video to Text"
+    )
+
+    if conv_file is not None:
+      if st.button("🚀 เริ่มแปลงเป็น MP3", use_container_width=True):
+        trigger_jarvis_action(
+            "กำลังแปลงไฟล์", "กำลังสกัดเสียงเป็น MP3 กรุณารอสักครู่ครับ"
+        )
+        with st.spinner("J.A.R.V.I.S. กำลังแยกแทร็กเสียง..."):
+          v_path = None
+          mp3_path = None
+          try:
+            ext = os.path.splitext(conv_file.name)[1]
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=ext
+            ) as tmp_vid:
+              tmp_vid.write(conv_file.getvalue())
+              v_path = tmp_vid.name
+
+            mp3_path = v_path + ".mp3"
+            video_clip = VideoFileClip(v_path)
+            if video_clip.audio is not None:
+              video_clip.audio.write_audiofile(mp3_path, logger=None)
+              video_clip.close()
+
+              base_name = os.path.splitext(conv_file.name)[0]
+              with open(mp3_path, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+                st.audio(audio_bytes, format="audio/mp3")
+                st.download_button(
+                    label="📥 ดาวน์โหลดไฟล์ MP3",
+                    data=audio_bytes,
+                    file_name=f"{base_name}.mp3",
+                    mime="audio/mp3",
+                    use_container_width=True,
+                )
+              trigger_jarvis_action(
+                  "แปลงไฟล์สำเร็จ", "แปลงเป็นไฟล์ MP3 เรียบร้อยแล้วครับ"
+              )
+              st.success("✅ แปลงไฟล์สำเร็จพร้อมดาวน์โหลดแล้วครับ!")
+            else:
+              video_clip.close()
+              st.warning("⚠️ ไม่พบแทร็กเสียงในไฟล์วิดีโอนี้ครับ")
+          except Exception as e:
+            st.error(f"❌ เกิดข้อผิดพลาดระหว่างแปลงไฟล์: {e}")
+          finally:
+            if v_path and os.path.exists(v_path):
+              try:
+                os.remove(v_path)
+              except Exception:
+                pass
+            if mp3_path and os.path.exists(mp3_path):
+              try:
+                os.remove(mp3_path)
+              except Exception:
+                pass
+
+# ========================================================
+# 5. หน้า Chat
 # ========================================================
 elif st.session_state.view == "chat":
   if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
@@ -612,7 +736,7 @@ elif st.session_state.view == "chat":
           st.error(f"เกิดข้อผิดพลาด: {e}")
 
 # ========================================================
-# 5. หน้า Stitch UI Designer
+# 6. หน้า Stitch UI Designer
 # ========================================================
 elif st.session_state.view == "stitch":
   if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
@@ -648,7 +772,7 @@ elif st.session_state.view == "stitch":
     )
 
 # ========================================================
-# 6. หน้า Matrix Monitor
+# 7. หน้า Matrix Monitor
 # ========================================================
 elif st.session_state.view == "matrix":
   if st.button("← ย้อนกลับไปหน้าระบบต่างๆ"):
